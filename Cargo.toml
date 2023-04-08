@@ -1,0 +1,23 @@
+[package]
+name = "plreditor"
+version = "0.1.0"
+edition = "2021"
+description = ".plr editor"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+aes = "*"
+block-padding = "*"
+byteorder = "*"
+cipher = "*"
+dotenvy = "*"
+serde_json = "*"
+
+[dependencies.cbc]
+version = "*"
+features = ["alloc"]
+
+[dependencies.serde]
+version = "*"
+features = ["derive"]
