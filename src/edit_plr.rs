@@ -33,13 +33,13 @@ use serde::{
 };
 use serde_json;
 
-pub fn decrypt_plr_aes128cbc(data: Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn decrypt_plr_aes128cbc(mut data: Vec<u8>, key: &[u8]) -> Vec<u8> {
     let cipher = Aes128CbcDec::new(key.into(), key.into());
-    let mut ciphertext = data;
-    return cipher.decrypt_padded_mut::<NoPadding>(ciphertext.as_mut_slice()).expect("Error decrypting ciphertext").to_owned();
+    return cipher.decrypt_padded_mut::<NoPadding>(data.as_mut_slice()).expect("Error decrypting ciphertext").to_owned();
 }
 
-pub fn encrypt_plr_aes128cbc(data: Vec<u8>, key: &[u8]) -> Vec<u8> {
+pub fn encrypt_plr_aes128cbc(mut data: Vec<u8>, key: &[u8]) -> Vec<u8> {
+    data.extend(vec![0; 16 - (data.len() & 15)]);
     let cipher = Aes128CbcEnc::new(key.into(), key.into());
     return cipher.encrypt_padded_vec_mut::<NoPadding>(&data.as_slice());
 }
@@ -297,10 +297,9 @@ pub fn deconstruct_plr(filepath: &str, key: &[u8]) -> Plr {
 }
 
 pub fn reconstruct_plr(plr: &mut Plr, key: &[u8]) {
-    plr.name = "M4r4ud3r".to_string();
     let raw = serialize_struct_to_raw_plr(plr);
     let encrypted = encrypt_plr_aes128cbc(raw, key);
-    write(format!("./{}.plr.bak.bak", plr.name), encrypted).expect("Error serializing PLR");
+    write(format!("./COPY_{}.plr", plr.name), encrypted).expect("Error serializing PLR");
 }
 
 struct PlrUnpacker;
@@ -486,7 +485,7 @@ pub struct Plr {
     pub UNKNOWN5: Vec<u8>, // 10 bytes
     pub inventory1: [Item; 32],
     pub inventory2: [Item; 26],
-    pub UNKNOWN6: Vec<u8>, // Stuff like misc_equipments(id, prefix) misc_dyes(id, prefix) piggy_bank(id, stack, prefix) safe(id, stack, prefix) buffs(id, duration) world_list(if_-1_skip, spawn_x, spawn_y, address, name) hotbar_locked(bool) hide_statuses_under_map(bool[]) fishing_quests_completed(int32) padding dpa_bindings(int32) builder_account_status(int32) bartender_quests(int32) mod_data padding
+    pub UNKNOWN6: Vec<u8>, // Stuff like misc_equipments(id, prefix) misc_dyes(id, prefix) piggy_bank(id, stack, prefix) safe(id, stack, prefix) buffs(id, duration) world_list(if_-1_skip, spawn_x, spawn_y, address, name) hotbar_locked(bool) hide_statuses_under_map(bool[]) fishing_quests_completed(int32) dpa_bindings(int32) builder_account_status(int32) bartender_quests(int32) mod_data padding
     pub byte_length: usize
 }
 
