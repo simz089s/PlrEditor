@@ -39,7 +39,8 @@ pub fn decrypt_plr_aes128cbc(mut data: Vec<u8>, key: &[u8]) -> Vec<u8> {
 }
 
 pub fn encrypt_plr_aes128cbc(mut data: Vec<u8>, key: &[u8]) -> Vec<u8> {
-    data.extend(vec![0; 16 - (data.len() & 15)]);
+    let b = 16 - (data.len() & 15);
+    data.extend(vec![u8::try_from(b).expect("Error padding"); b]);
     let cipher = Aes128CbcEnc::new(key.into(), key.into());
     return cipher.encrypt_padded_vec_mut::<NoPadding>(&data.as_slice());
 }
@@ -153,8 +154,6 @@ pub fn deserialize_raw_to_struct_plr(data: Vec<u8>) -> Plr {
         }
     }
 
-    let byte_length = reader.position() as usize;
-
     let plr = Plr {
         version: version,
         company: company,
@@ -195,15 +194,15 @@ pub fn deserialize_raw_to_struct_plr(data: Vec<u8>) -> Plr {
         UNKNOWN5: unknown5,
         inventory1: inventory1,
         inventory2: inventory2,
-        byte_length: byte_length,
-        UNKNOWN6: data[byte_length..].to_vec()
+        UNKNOWN6: data[reader.position() as usize..].to_vec(),
+        raw_length_bytes: data.len()
     };
 
     return plr;
 }
 
 pub fn serialize_struct_to_raw_plr(plr: &Plr) -> Vec<u8> {
-    let mut data: Vec<u8> = vec![0; plr.byte_length];
+    let mut data: Vec<u8> = vec![0; plr.raw_length_bytes];
 
     {
         let mut writer = Cursor::new(&mut data);
@@ -287,8 +286,7 @@ pub fn serialize_struct_to_raw_plr(plr: &Plr) -> Vec<u8> {
     return data;
 }
 
-pub fn deconstruct_plr(filepath: &str, key: &[u8]) -> Plr {
-    let plr_file = read(filepath).expect("Error reading encrypted file");
+pub fn deconstruct_plr(plr_file: Vec<u8>, key: &[u8]) -> Plr {
     let raw = decrypt_plr_aes128cbc(plr_file, key);
     let plr = deserialize_raw_to_struct_plr(raw);
     let data = serde_json::to_string(&plr).expect("Error serializing PLR to JSON");
@@ -296,10 +294,12 @@ pub fn deconstruct_plr(filepath: &str, key: &[u8]) -> Plr {
     return plr;
 }
 
-pub fn reconstruct_plr(plr: &mut Plr, key: &[u8]) {
-    let raw = serialize_struct_to_raw_plr(plr);
+pub fn reconstruct_plr(data: Vec<u8>, key: &[u8]) -> Plr {
+    let plr = serde_json::from_slice(data.as_slice()).expect("Error deserializing JSON into plr");
+    let raw = serialize_struct_to_raw_plr(&plr);
     let encrypted = encrypt_plr_aes128cbc(raw, key);
-    write(format!("./COPY_{}.plr", plr.name), encrypted).expect("Error serializing PLR");
+    write(format!("./COPY_{}.plr", &plr.name), encrypted).expect("Error serializing PLR");
+    return plr;
 }
 
 struct PlrUnpacker;
@@ -389,7 +389,7 @@ impl PlrPacker {
         return writer.write(&v).expect("Error writing bytes to buffer");
     }
 
-    pub fn w_string<W: Write + Seek>(writer: &mut W, v: &String) -> usize {
+    pub fn w_string<W: Write + Seek>(writer: &mut W, v: &str) -> usize {
         writer.write(v.as_bytes()).expect("Error writing String to buffer");
         return 0;
     }
@@ -452,6 +452,7 @@ pub struct Item {
     Serialize,
     Deserialize,
     Debug,
+    Default,
 )]
 pub struct Plr {
     pub version: u32,
@@ -486,7 +487,7 @@ pub struct Plr {
     pub inventory1: [Item; 32],
     pub inventory2: [Item; 26],
     pub UNKNOWN6: Vec<u8>, // Stuff like misc_equipments(id, prefix) misc_dyes(id, prefix) piggy_bank(id, stack, prefix) safe(id, stack, prefix) buffs(id, duration) world_list(if_-1_skip, spawn_x, spawn_y, address, name) hotbar_locked(bool) hide_statuses_under_map(bool[]) fishing_quests_completed(int32) dpa_bindings(int32) builder_account_status(int32) bartender_quests(int32) mod_data padding
-    pub byte_length: usize
+    pub raw_length_bytes: usize
 }
 
 impl Plr {
@@ -535,6 +536,6 @@ impl Plr {
         plr.dyes.map(|e| println!("dyes:\t{:?}", e));
         plr.inventory1.map(|i| println!("{:?}", i));
         plr.inventory2.map(|i| println!("{:?}", i));
-        println!("UNKNOWN DATA\nNumber of bytes:{}", plr.byte_length);
+        println!("UNKNOWN DATA\nNumber of bytes:{}", plr.raw_length_bytes);
     }
 }
