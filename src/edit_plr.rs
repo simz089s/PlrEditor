@@ -1,7 +1,4 @@
-use std::fs::{
-    read,
-    write,
-};
+use std::fs::write;
 use std::io::{
     Read,
     Write,
